@@ -7,7 +7,7 @@ import banque.exceptions.SoldeInsuffisantException;
  * Représente un compte bancaire individuel : son solde, son découvert
  * autorisé, et les opérations de dépôt, retrait et calcul d'intérêts.
  */
-public class CompteBancaire {
+public class CompteBancaire {   
 
     private final String iban;
     private final String titulaire;
