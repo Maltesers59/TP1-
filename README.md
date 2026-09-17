@@ -2,15 +2,15 @@
 
 ## 1. Présentation : quoi, en quelques lignes, ce que fait le projet :
 
-Le projet est une application de gestion de comptes bancaires développée en Java. Nous devons faire des tests unitaires avec ***JUnit 5***. Il permet de créer des *comptes bancaires* avec différentes opérations (dépôt, retrait, calcul d'intérêts), et de gérer plusieurs comptes avec un *GestionnaireComptes* qui centralise ces comptes et propose différentes opérations (recherche par IBAN, virement, solde total, liste des comptes en découvert).
+Le projet est une application de gestion de comptes bancaires développée en Java. Nous devons faire des tests unitaires avec ***JUnit 5***. Il permet de créer des *comptes bancaires* avec différents ajout, et de gérer plusieurs comptes avec un *GestionnaireComptes* qui va lui aussi avoir différentes options 
 
 ## 2. Choix de conception : pourquoi ce découpage de classes, gestion des exceptions, avez-vous fait du TDD ou testé après coup ?
 
-**Découpage des classes.** Le projet sépare deux responsabilités distinctes : `CompteBancaire` porte toute la logique propre à *un* compte (solde, découvert, dépôt, retrait, calcul d'intérêts), tandis que `GestionnaireComptes` porte la logique de gestion d'un *ensemble* de comptes (recherche par IBAN, unicité des IBAN, virements, agrégats). C'est une application du principe de responsabilité unique : si on ajoutait demain une persistance en base de données, seul `GestionnaireComptes` serait concerné. Les exceptions métier sont regroupées dans leur propre package (`banque.exceptions`) pour bien séparer la logique métier de la gestion des cas d'erreur.
+**Pourquoi deux classes séparées.** J'ai séparé le projet en deux classes parce qu'elles ne s'occupent pas de la même chose : `CompteBancaire` gère un seul compte, alors que `GestionnaireComptes` s'occupe de gérer plusieurs comptes en même temps. Ça évite de tout mettre dans une seule grosse classe, et si plus tard on voulait par exemple sauvegarder les comptes dans une base de données, ça toucherait seulement `GestionnaireComptes`, pas `CompteBancaire`. J'ai aussi mis les exceptions dans leur propre dossier (`exceptions`) pour ne pas les mélanger avec le code qui gère vraiment les comptes.
 
-**Gestion des exceptions.** Quatre exceptions métier (`MontantInvalideException`, `SoldeInsuffisantException`, `CompteInconnuException`, `CompteDejaExistantException`) héritent de `RuntimeException` plutôt que de `Exception`. Elles permettent au code appelant (et aux tests) de distinguer précisément le type d'erreur métier, avec des messages explicites, sans alourdir les signatures de méthodes avec des `throws` puisqu'il s'agit d'erreurs de logique métier détectées à l'exécution.
+**Pourquoi des exceptions personnalisées.** Plutôt que d'utiliser des exceptions Java génériques, j'ai créé 4 exceptions à moi (`MontantInvalideException`, `SoldeInsuffisantException`, `CompteInconnuException`, `CompteDejaExistantException`). Comme ça, quand une erreur arrive, on sait tout de suite de quel type de problème il s'agit, et dans les tests c'est plus simple de vérifier qu'une méthode plante bien pour la bonne raison.
 
-**TDD ou tests après coup.** Le code métier (`CompteBancaire`, `GestionnaireComptes`) a été écrit en premier, en suivant directement le tableau des méthodes et leurs règles données dans le sujet. Les tests ont été écrits ensuite, en reprenant méthodiquement la liste des cas demandés (cas nominaux, cas limites, cas d'erreur) comme une checklist, pour s'assurer qu'aucun cas n'était oublié (par exemple le retrait d'un centime de plus que le découvert autorisé, ou la vérification qu'un virement qui échoue ne modifie aucun solde). Cette approche a été choisie parce que les règles métier étaient déjà entièrement spécifiées dans l'énoncé, donc il suffisait de les implémenter fidèlement puis de dérouler la liste de tests fournie pour valider chaque règle une par une.
+**TDD ou tests après coup.** J'ai d'abord codé les classes `CompteBancaire` et `GestionnaireComptes` en suivant le tableau des méthodes donné dans le sujet, puis j'ai écrit les tests après, en reprenant un par un tous les cas demandés pour être sûr de n'en avoir oublié aucun, comme le coup du retrait d'un centime de trop par rapport au découvert autorisé. Je n'ai pas fait du TDD pur (où on écrit le test avant le code) parce que le sujet donnait déjà toutes les règles à l'avance, donc il suffisait de les coder puis de vérifier avec les tests.pour bien séparer la logique métier de la gestion des cas d'erreur.
 
 ## 3. Comment lancer les tests
 
@@ -24,19 +24,17 @@ mvn test
 
 | Classe de test | Nombre de tests | Ce qu'ils couvrent |
 |---|---|---|
-| `CompteBancaireTest` | 13 | Dépôt/retrait nominal, calcul d'intérêts, retrait exact au découvert autorisé, dépassement d'un centime, montants à zéro, montants négatifs, taux négatif, `estEnDecouvert()` |
-| `GestionnaireComptesTest` | 9 | Virement réussi, solde total, recherche par IBAN, IBAN inconnu, IBAN déjà existant, virement atomique (échec au milieu), virement depuis un IBAN source inconnu, liste des comptes en découvert |
+| `CompteBancaireTest` | 13 | Dépôt et retrait normaux, calcul des intérêts, retrait qui tombe pile sur le découvert autorisé, retrait d'un centime de trop, montants à zéro, montants négatifs, taux négatif, vérification de `estEnDecouvert()` |
+| `GestionnaireComptesTest` | 9 | Virement qui marche, calcul du solde total, recherche d'un compte par IBAN, IBAN qui n'existe pas, IBAN déjà utilisé, virement qui échoue au milieu (vérifie que rien n'a bougé), virement avec un compte source inconnu, liste des comptes en découvert |
 
 ## 5. Difficultés rencontrées
 
-*(section à compléter avec tes propres difficultés rencontrées pendant le TP ; voici des pistes courantes sur ce type d'exercice)*
-
-- **Comparaison stricte sur le découvert autorisé** : distinguer `<` de `<=` pour savoir si un retrait amenant exactement à `-decouvertAutorise` doit être accepté ou refusé. Résolu en écrivant d'abord le test du cas limite, ce qui a permis de fixer la condition exacte (`nouveauSolde < -decouvertAutorise` refuse, `==` est accepté).
-- **Atomicité du virement** : s'assurer qu'un retrait qui échoue n'entraîne aucun dépôt. Résolu en appelant `retirer()` avant `deposer()` : si `retirer()` lève une exception, elle interrompt immédiatement la méthode et `deposer()` n'est jamais exécuté.
-- **Comparaison de nombres à virgule flottante dans les tests** : `assertEquals` sur des `double` nécessite un delta de tolérance (`assertEquals(attendu, obtenu, 0.001)`) plutôt qu'une égalité stricte, pour éviter les faux échecs liés aux arrondis.
+- **Savoir où mettre la limite du découvert** : le plus dur ça a été de bien choisir entre `<` et `<=` pour définir si un retrait qui tombe pile sur le découvert autorisé doit passer ou non. Pour trouver la bonne condition, j'ai commencé par écrire le test de ce cas limite, ce qui m'a aidé à voir clairement ce qu'il fallait coder (`nouveauSolde < -decouvertAutorise` refuse le retrait, mais l'égalité est acceptée).
+- **Faire en sorte que le virement ne bouge rien s'il échoue** : il fallait s'assurer que si le retrait plante, le dépôt ne se fasse jamais. Je l'ai réglé en appelant `retirer()` avant `deposer()` : si `retirer()` plante, la méthode s'arrête tout de suite et `deposer()` n'est jamais lancé.
+- **Comparer des nombres à virgule dans les tests** : avec des `double`, on ne peut pas juste comparer deux valeurs directement, il faut ajouter une petite marge d'erreur (`assertEquals(attendu, obtenu, 0.001)`), sinon certains tests plantent à cause des arrondis alors que le résultat est juste.
 
 ## 6. Bilan
 
-*(section à compléter avec ta propre réflexion)*
+Ce TP m'a permis de vraiment comprendre comment écrire des tests unitaires bien organisés avec JUnit 5, et surtout de faire la différence entre les trois types de cas à tester : les cas normaux, les cas limites, et les cas où ça doit planter volontairement. J'ai aussi compris pourquoi c'est utile de créer ses propres exceptions plutôt que d'utiliser celles de Java par défaut : ça rend le code et les tests beaucoup plus clairs. Enfin, ça m'a servi à m'entraîner à faire des commits Git réguliers au fur et à mesure du travail, plutôt que de tout pousser d'un coup à la fin.
 
-Ce TP a permis de mettre en pratique l'écriture de tests unitaires structurés avec JUnit 5 (`@Test`, `@Nested`, `@DisplayName`, `assertThrows`), de distinguer clairement cas nominaux, cas limites et cas d'erreur, et de voir concrètement l'intérêt d'exceptions métier dédiées pour rendre les tests lisibles. Il a aussi permis de pratiquer un historique Git construit progressivement plutôt qu'en un seul commit final.
+
